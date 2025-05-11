@@ -61,7 +61,7 @@ To reproduce Figure 5 from the paper:
    ```matlab
    run_range = [12 46];
    ```
-5. Run the script Figure_5.m to obtain the plots
+5. Run 'Figure_5.m' to obtain the plots
 
 ### tACS Simulations
 
