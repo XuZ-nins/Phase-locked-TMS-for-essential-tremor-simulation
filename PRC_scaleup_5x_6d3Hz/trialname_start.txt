@@ -1,0 +1,16 @@
+initialization/PCap.txt 
+initialization/DCNap.txt 
+initialization/Vimap.txt 
+initialization/ION.txt 
+initialization/v_DCN1.txt 
+initialization/v_DCN2.txt 
+initialization/v_DCN3.txt 
+initialization/v_DCN4.txt 
+initialization/v_DCN5.txt 
+initialization/v_PC.txt 
+initialization/v_Vim1.txt 
+initialization/v_Vim2.txt 
+initialization/v_Vim3.txt 
+initialization/v_Vim4.txt 
+initialization/v_Vim5.txt 
+initialization/i_sin.txt 

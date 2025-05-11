@@ -1,0 +1,38 @@
+/* Author: Xu Zhang @UConn, Jul., 2018
+TC: Thalamocortical neuron (in the Vim of the thalamus)
+Implementation of Meijer et al., 2011
+*/
+
+// To execute this script individually, please specify the following variables, e.g.:
+// TCrnd = 105 // rng seed
+// noiseSwitch=1
+// dt = 0.0125
+
+// Membrane noise in TC
+objref TC_noisc, TCnoise[25]
+TC_noisc = new Random(TCrnd)
+TC_noisc.normal(0, 1e-1*noiseSwitch)
+create TCcell[25]
+
+for i = 0,24 {
+	access TCcell[i]
+	TCcell[i].nseg = 1
+	TCcell[i].diam = 96  // (um)     
+	TCcell[i].L = 96     // (um)
+	TCcell[i].cm = 1     // (uF/cm2)
+
+	insert tcfastNa
+	insert tcslowK
+	insert tcCaT
+	insert tcCaConc
+	insert tcfastK
+	insert tch
+	insert tcpas2
+
+	// Reversal potentials in .mod files are ignored when compiled
+	TCcell[i].ena = 45
+	TCcell[i].ek = -95
+
+	TCcell[i] TCnoise[i] = new NoisyCurrent(0.2)
+	TC_noisc.play(&TCnoise[i].noise)
+}

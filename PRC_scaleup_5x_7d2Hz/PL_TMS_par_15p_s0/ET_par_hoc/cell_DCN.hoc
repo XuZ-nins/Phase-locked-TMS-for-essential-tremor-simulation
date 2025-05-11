@@ -1,0 +1,279 @@
+/* Author: Xu Zhang @UConn, Jul., 2018
+Neurons in the dentate nucleus (DCN and NO)
+DCN: deep cerebellar neuron (glutamatergic), projects onto the TC neuron (Vim)
+NO: nucleo-olivary neuron (GABAergic), projects onto ION cells
+Modified from Johannes Luthman et al., 2011
+*/
+
+// To execute this script individually, please specify the following variables, e.g.:
+// DCNrnd = 103 // rng seed
+// NOrnd = 104
+// noiseSwitch=1
+// dt = 0.0125
+
+// Create DCN cell
+
+create DCNcell[25] // Large DCN output cell
+create NOcell[25] // Nucleo-olivary cell
+
+proc DCNmechs() {
+	setParams()
+    setBiophysics()
+    insertChannels()
+    fixCaIons()
+}
+
+proc setParams() {
+	// Set the temperature of the simulation. The model has been titrated to reproduce
+// in vivo like firing at celsius = 37.0 (default), while the original GENESIS
+// DCN model was constructed with temp = 32 deg celsius.
+celsius = 36.0 // Modified by Xu Zhang
+TempOrigDCN = 32.0
+
+// TempAnchisi = the temperature in the middle of the given range of room temperature
+// recording in Anchisi D, Scelfo B, Tempia F (2001) Postsynaptic currents in deep
+// cerebellar nuclei. J Neurophysiol 85:323-331.
+TempAnchisi = 24.0
+Q10channelGating = 3.0 // Middle of experimentally shown range (2-4) of ion channel gating, 
+        // see Hille 3rd ed (2001), p.51.
+Q10synapseGating = 2.0 // (Silver et al., 1996; Otis and Mody, 1992) Synaptic Q10s are given
+        // for GABA and excitatory synapses in Otis and Mody (1992), and Silver et al. (1996),
+        // respectively (full references below), with both giving Q10s in the region of 2.
+Q10conductances = 1.4 // The middle of the range (1.2-1.5) given in Hille 3rd ed (2001) 
+        // for ion channel conductances (p.51). Also, eg Milburn et al (1995) 
+        // Receptors Channels 3:201-211: The conductance increases steeply with temperature,
+        // with Q10 ranging from 1.4 to 1.5? However, also note Cao XJ, Oertel D (2005) 
+        // J Neurophysiol 94:821-832. They get the results that some conductances have a 
+        // Q10 of 2 while other channel conductances don't change at all by changing 
+        // temp (Q10=1).
+Q10CaConc = 2.0 // Guesswork: I assume that calcium concentration changes due to a
+        // combination of diffusion (Q10 of ca 1.4) and pumping action (Q10 of enzymatic
+        // reactions = ca 3)
+QdTsynapseTausAnchisi = Q10synapseGating^((celsius - TempAnchisi) / 10.0)
+QdTconductanceAnchisi = Q10conductances^((celsius - TempAnchisi) / 10.0)
+QdTchannelGating = Q10channelGating^((celsius - TempOrigDCN) / 10.0)
+QdTsynapseTaus = Q10synapseGating^((celsius - TempOrigDCN) / 10.0)
+QdTconductances = Q10conductances^((celsius - TempOrigDCN) / 10.0)
+QdTCaConc = Q10CaConc^((celsius - TempOrigDCN) / 10.0)
+
+// Reversal potentials in mV
+SodiumRevPot = 71-10 // Modified by Xu Zhang
+PotassiumRevPot = -90+20 // Modified by Xu Zhang
+GABARevPot = -75
+ExcitSynRevPot = 0
+hRevPot = -45
+TNCrevPot = -35
+
+// Non-synaptic channel conductances
+gNaFsoma = 2.5e-2*QdTconductances/1.5 // Modified by Xu Zhang
+gNaPsoma = 8e-4*QdTconductances
+gfKdrsoma = 1.5e-2*QdTconductances
+gsKdrsoma = 1.25e-2*QdTconductances
+gSKsoma = 2.2e-4*QdTconductances
+permCaLVAsoma = 1.77e-5*QdTconductances
+permCaHVAsoma = 7.5e-6*QdTconductances
+tauCaConcSoma = 70/QdTCaConc
+kCaCaConcSoma = 3.45e-7
+gHsoma = 2e-4*QdTconductances
+gTNCsoma = 3e-5*QdTconductances
+}
+
+proc setBiophysics() {
+    // insert biophysics common to all compartments
+    for i = 0,24 {
+		DCNcell[i] {
+			// Passive electrical parameters.
+			Ra = 35.4 // ohm * cm
+			cm = 1 // microfarad / cm2
+			// Modified by Xu Zhang
+			L = 65 // um
+			diam = 20.248 // um
+			PASSCOND = 2.81e-5*QdTconductances // S/cm2  passive conductance
+			SHELLTHICK = 0.2 // um, the thickness of the calcium-containing shell defined by CaConc.mod.
+			
+			insert dcnpas
+        gbar_dcnpas = PASSCOND
+		}
+	
+		NOcell[i] {
+			// Passive electrical parameters.
+			Ra = 35.4 // 2093.6 // ohm * cm
+			cm = 1 // 0.2838 // microfarad / cm2
+			// Modified by Xu Zhang
+			// Note: the geometry is not realistic, the L here is set only to match the I-f experimental data from Najac & Raman, 2015
+			L = 200 // um
+			diam = 14.8843 // um
+			PASSCOND = 2.81e-5*QdTconductances // 4.2362e-5*QdTconductances // S/cm2  passive conductance
+			
+			insert dcnpas
+			gbar_dcnpas = PASSCOND
+		}
+	}
+}
+
+proc insertChannels() {
+    // For each type of compartment, insert NMODL mechanisms
+    // (ion channels and ca-concentration).
+
+    // The qdeltat variable is GLOBAL in the NMODLs, meaning that it only needs to be
+    // specified once for each mechanism, here in the DCNcell (which contains a copy of
+    // each mechanism).
+    for i = 0,24 {
+		
+		DCNcell[i] {
+
+			insert dcnNaF
+			gbar_dcnNaF = gNaFsoma
+			qdeltat_dcnNaF = QdTchannelGating
+
+			insert dcnNaP
+			gbar_dcnNaP = gNaPsoma
+			qdeltat_dcnNaP = QdTchannelGating
+
+			
+			// ena = SodiumRevPot
+			ena = SodiumRevPot
+
+			insert dcnfKdr
+			gbar_dcnfKdr = gfKdrsoma
+			qdeltat_dcnfKdr = QdTchannelGating
+
+			insert dcnsKdr
+			gbar_dcnsKdr = gsKdrsoma
+			qdeltat_dcnsKdr = QdTchannelGating
+
+			insert dcnSK
+			gbar_dcnSK = gSKsoma
+			qdeltat_dcnSK = QdTchannelGating
+
+			
+			// ek = PotassiumRevPot
+			ek = PotassiumRevPot
+
+			insert dcnh
+			gbar_dcnh = gHsoma
+			qdeltat_dcnh = QdTchannelGating
+			eh_dcnh = hRevPot
+
+
+			insert dcnTNC
+			gbar_dcnTNC = gTNCsoma
+			eTNC_dcnTNC = TNCrevPot
+
+
+			// calcium channels - they use the Goldman-Hodgkin-Katz (GHK) current equation
+			// and so don't have a set reversal potential.
+			insert dcnCaLVA
+			perm_dcnCaLVA = permCaLVAsoma
+			qdeltat_dcnCaLVA = QdTchannelGating
+
+			insert dcnCaHVA
+			perm_dcnCaHVA = permCaHVAsoma
+			qdeltat_dcnCaHVA = QdTchannelGating
+
+
+			// insert a hypothetical shell below the membrane of the cell to keep track of the
+			// calcium entering the cell through the CaHVA and CaLVA channels, respectively.
+			// The resulting calcium concentration is used to calculate the current flow through
+			// through those channels.
+
+			// For the CaHVA channel:
+
+			insert dcnCaConc
+			tauCa_dcnCaConc = tauCaConcSoma
+			kCa_dcnCaConc = kCaCaConcSoma
+
+			// For the DCNcell, the calculation of shell thickness is different from
+			// the dendrites since it is a sphere in GENESIS and a cylinder
+			// in NEURON. See how it's done in GENESIS file cn_comp_dj10.g and
+			// divide that expression by the surface area of the NEURON DCNcell to get
+			// the following expression:
+			depth_dcnCaConc = SHELLTHICK - 2*SHELLTHICK^2/diam + \
+					4*SHELLTHICK^3/(3*diam^2) // =0.196215
+
+
+			// For the CaLVA channel:
+
+			insert dcnCalConc
+			tauCal_dcnCalConc = tauCaConcSoma
+			kCal_dcnCalConc = kCaCaConcSoma
+			depth_dcnCalConc = SHELLTHICK - 2*SHELLTHICK^2/diam + \
+					4*SHELLTHICK^3/(3*diam^2) // =0.196215
+		}
+	
+		NOcell[i] {
+
+			insert dcnNaF
+			gbar_dcnNaF = gNaFsoma
+			qdeltat_dcnNaF = QdTchannelGating
+			
+			ena = SodiumRevPot
+
+			insert dcnfKdr
+			gbar_dcnfKdr = gfKdrsoma
+			qdeltat_dcnfKdr = QdTchannelGating
+			
+			insert dcnsKdr
+			gbar_dcnsKdr = gsKdrsoma*2
+			qdeltat_dcnsKdr = QdTchannelGating
+			
+			ek = PotassiumRevPot
+			
+		}
+	}
+} // end proc insertChannels()
+
+proc fixCaIons() {
+    // Set some specifications for the Ca and Cal ions. The following ion_style
+    // statements don't affect the behaviour of the model but compared to not giving
+    // them, speed up the simulation ca 5%, probably due to preventing eca from being
+    // calculated each dt. ion_style has to be set for each compartment where the Ca ion
+    // is used but gives no error when set for those compartments that don't use the ion.
+    forall {
+        ion_style("ca_ion", 2, 0, 0, 0, 1)
+    }
+    forall {
+        ion_style("cal_ion", 2, 0, 0, 0, 1)
+    }
+    // Set the extracellular calcium concentrations (mM):
+    cao0_ca_ion = 2
+    calo0_cal_ion = 2
+}
+
+DCNmechs()
+
+// Membrane noise in DCN
+objref DCN_noisc, DCNnoise[25]
+DCN_noisc = new Random(DCNrnd)
+DCN_noisc.normal(0, 5e-2)
+for i = 0,24 {
+	DCNcell[i] DCNnoise[i] = new NoisyCurrent(0.2)
+	DCN_noisc.play(&DCNnoise[i].noise)
+}
+
+// Membrane noise in NO
+objref NO_noisc, NOnoise[25]
+NO_noisc = new Random(NOrnd)
+NO_noisc.normal(0, 2e-2)
+for i = 0,24 {
+	NOcell[i] NOnoise[i] = new NoisyCurrent(0.2)
+	NO_noisc.play(&NOnoise.noise)
+}
+
+// Offset Current: keep spontaneous firing rate at ~50Hz as described in Najac & Raman, 2015
+objref ocDCN[25]
+for i = 0,24 {
+	DCNcell[i] ocDCN[i] = new IClamp(0.5)
+	ocDCN[i].amp = -5.3e-2
+	ocDCN[i].del = 0
+	ocDCN[i].dur = 1e10
+}
+
+// Offset Current: keep spontaneous firing rate at ~20Hz as described in Najac & Raman, 2015
+objref ocNO[25]
+for i = 0,24 {
+	NOcell[i] ocNO[i] = new IClamp(0.5)
+	ocNO[i].amp = -3e-2
+	ocNO[i].del = 0
+	ocNO[i].dur = 1e10
+}

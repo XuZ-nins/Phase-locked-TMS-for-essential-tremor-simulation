@@ -1,0 +1,100 @@
+/* Author: Xu Zhang @UConn, Jan., 2019
+Synaptic mechanisms between ION-PC and ION-DCN
+This script cannot be executed individually
+*/
+
+objref ION2PC_noisyn
+ION2PC_noisyn = new Random(ION2PCrnd)
+ION2PC_noisyn.normal(0, 5e-9*noiseSwitch)
+
+// Varying IO-SUP-PC synaptic tc
+double ION2PC_tau_ipsc[40*5]
+objref rngION2PCipsc
+rngION2PCipsc = new Random(ION2PCipscrnd)
+rngION2PCipsc.normal(80,100)
+
+objref f_ION2PC
+f_ION2PC = new File()
+f_ION2PC.ropen("params_ION2PC.txt")
+double ION2PC[40*5]
+for i = 0,199 {
+	ION2PC[i] = f_ION2PC.scanvar()
+}
+
+// 1st spike
+objref ION2PC_syn_ampa[200*5], NC_ION2PC_syn_ampa[200*5]
+objref ION2PC_syn_nmda[200*5], NC_ION2PC_syn_nmda[200*5]
+objref ION2PC_syn_ipsc[200*5], NC_ION2PC_syn_ipsc[200*5]
+
+// ION2PCcount = 0
+// for j = 0,39 {
+	// for k = 0,4 {
+		// // AMPA
+		// PCcell[j*5+k] ION2PC_syn_ampa[ION2PCcount] = new NoisyExpSyn(0)
+		// ION2PC_syn_ampa[ION2PCcount].tau = 0.6 // (ms) triggers complex spike
+		// ION2PC_syn_ampa[ION2PCcount].e = 0
+		// IONcell[j] NC_ION2PC_syn_ampa[ION2PCcount] = new NetCon(&v(0.5), ION2PC_syn_ampa[ION2PCcount], -40, 4, 4e-3) // Delay determined from Sugihara et al., 1993
+		// // NMDA
+		// PCcell[j*5+k] ION2PC_syn_nmda[ION2PCcount] = new NoisyExp2Syn(0.2)
+		// ION2PC_syn_nmda[ION2PCcount].tau1 = 2.63
+		// ION2PC_syn_nmda[ION2PCcount].tau2 = 28
+		// ION2PC_syn_nmda[ION2PCcount].e = 0
+		// IONcell[j] NC_ION2PC_syn_nmda[ION2PCcount] = new NetCon(&v(0.5), ION2PC_syn_nmda[ION2PCcount], -40, 4, 2.5e-3)
+		// ION2PC_noisyn.play(&ION2PC_syn_nmda[ION2PCcount].noise)
+		// // IPSC
+		// PCcell[j*5+k] ION2PC_syn_ipsc[ION2PCcount] = new NoisyExp2Syn(0.4)
+		// ION2PC_syn_ipsc[ION2PCcount].tau1 = 5 // (ms) triggers complex spike
+		// ION2PC_syn_ipsc[ION2PCcount].tau2 = rngION2PCipsc.repick() // mean = 80, std = 10 // (ms) triggers complex spike
+		// ION2PC_syn_ipsc[ION2PCcount].e = -65
+		// IONcell[j] NC_ION2PC_syn_ipsc[ION2PCcount] = new NetCon(&v(0.5), ION2PC_syn_ipsc[ION2PCcount], -40, 14, 0.01)
+		// ION2PC_noisyn.play(&ION2PC_syn_ipsc[ION2PCcount].noise)
+		
+		// ION2PCcount = ION2PCcount + 1
+	// }
+// }
+// // f_ION2PC.close()
+
+ION2PCcount = 0
+for j = 0,199 {
+	for k = 0,ION2PC[j]-1 {
+		tmpPCind = f_ION2PC.scanvar()-1
+		// AMPA
+		PCcell[tmpPCind] ION2PC_syn_ampa[ION2PCcount] = new NoisyExpSyn(0)
+		ION2PC_syn_ampa[ION2PCcount].tau = 0.6 // (ms) triggers complex spike
+		ION2PC_syn_ampa[ION2PCcount].e = 0
+		IONcell[j] NC_ION2PC_syn_ampa[ION2PCcount] = new NetCon(&v(0.5), ION2PC_syn_ampa[ION2PCcount], -40, 4+4.2, 4e-3) // Delay determined from Sugihara et al., 1993
+		// NMDA
+		PCcell[tmpPCind] ION2PC_syn_nmda[ION2PCcount] = new NoisyExp2Syn(0.2)
+		ION2PC_syn_nmda[ION2PCcount].tau1 = 2.63
+		ION2PC_syn_nmda[ION2PCcount].tau2 = 28
+		ION2PC_syn_nmda[ION2PCcount].e = 0
+		IONcell[j] NC_ION2PC_syn_nmda[ION2PCcount] = new NetCon(&v(0.5), ION2PC_syn_nmda[ION2PCcount], -40, 4+4.2, 2.5e-3)
+		ION2PC_noisyn.play(&ION2PC_syn_nmda[ION2PCcount].noise)
+		// IPSC
+		PCcell[tmpPCind] ION2PC_syn_ipsc[ION2PCcount] = new NoisyExp2Syn(0.4)
+		ION2PC_syn_ipsc[ION2PCcount].tau1 = 5 // (ms) triggers complex spike
+		ION2PC_syn_ipsc[ION2PCcount].tau2 = rngION2PCipsc.repick() // mean = 80, std = 10 // (ms) triggers complex spike
+		ION2PC_syn_ipsc[ION2PCcount].e = -65
+		IONcell[j] NC_ION2PC_syn_ipsc[ION2PCcount] = new NetCon(&v(0.5), ION2PC_syn_ipsc[ION2PCcount], -40, 14+4.2, 0.01)
+		ION2PC_noisyn.play(&ION2PC_syn_ipsc[ION2PCcount].noise)
+		
+		ION2PCcount = ION2PCcount + 1
+	}
+}
+f_ION2PC.close()
+
+// Glutamate IO-DCN
+objref ION2DCN_noisyn[25]
+ION2DCN_noisyn = new Random(ION2DCNrnd)
+ION2DCN_noisyn.normal(0, 1e-10*noiseSwitch)
+
+objref ION2DCN_syn_ampa[25], NC_ION2DCN_syn_ampa[25]
+for i = 0,24 {
+	DCNcell[i] ION2DCN_syn_ampa[i] = new NoisyExpSyn(0.7)
+
+	// GLUT syn_epscapse IO-PC
+	ION2DCN_syn_ampa[i].tau = 0.8 // ION2PC_tau // (ms) triggers complex spike
+	ION2DCN_syn_ampa[i].e = 0
+	IONcell[i*8] NC_ION2DCN_syn_ampa[i] = new NetCon(&v(0.5), ION2DCN_syn_ampa[i], -40, 2.5, 5e-3) // Delay determined from Najac and Raman, 2017
+	ION2DCN_noisyn.play(&ION2DCN_syn_ampa[i].noise)
+}

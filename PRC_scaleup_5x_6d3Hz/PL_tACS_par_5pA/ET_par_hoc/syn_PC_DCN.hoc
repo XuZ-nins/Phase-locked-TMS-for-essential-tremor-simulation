@@ -1,0 +1,108 @@
+/* Author: Xu Zhang @UConn, Jan., 2019
+Synaptic mechanisms between PC-DCN, PC-NO, and MC (PY)-PN-DCN (PN: pontine nucleus)
+This script cannot be executed individually
+*/
+
+////////////////////////////////////////////////
+// PC-DCN Pathway
+access DCNcell
+
+PC2DCN_delay = 4.2 // Delay determined from Hoebeek et al., 2008
+PC2NO_delay = 4.2
+
+// Synaptic noise to DCN
+objref DCN_noisyn
+DCN_noisyn = new Random(PC2DCNrnd)
+DCN_noisyn.normal(0, 1e-7*noiseSwitch)
+
+// Linear fast inhibition by PC simple spikes
+objref f_PC2DCN
+f_PC2DCN = new File()
+f_PC2DCN.ropen("params_PC2DCN.txt")
+double PC2DCN[200*5]
+for i = 0,999 {
+	PC2DCN[i] = f_PC2DCN.scanvar()
+}
+
+objref PC2DCN_syn[200*5]
+
+PC2DCNcount = 0
+for j = 0,999 {
+	for k = 0,PC2DCN[j]-1 {
+		tmpDCNind = f_PC2DCN.scanvar()-1
+		DCNcell[tmpDCNind] PC2DCN_syn[PC2DCNcount] = new tanhSyn(0.2)
+		setpointer PC2DCN_syn[PC2DCNcount].vpre, PCcell[j].v(0.5)
+		
+		PC2DCN_syn[PC2DCNcount].g = 1e-3
+		PC2DCN_syn[PC2DCNcount].voff = -52
+		PC2DCN_syn[PC2DCNcount].rparam = 1
+		PC2DCN_syn[PC2DCNcount].alpha = 0.2
+		PC2DCN_syn[PC2DCNcount].tau = 2.4
+		PC2DCN_syn[PC2DCNcount].e = -80
+		DCN_noisyn.play(&PC2DCN_syn[PC2DCNcount].noise)
+		PC2DCNcount = PC2DCNcount + 1
+	}
+}
+f_PC2DCN.close()
+// PC-DCN Pathway End
+////////////////////////////////////////////////
+
+////////////////////////////////////////////////
+// PC-NO Pathway
+objref PC2NO_syn[200*5]
+
+// Synaptic noise to NO
+objref NO_noisyn
+NO_noisyn = new Random(PC2NOrnd)
+NO_noisyn.normal(0, 1e-10*noiseSwitch)
+
+PC2NOcount = 0
+for j = 0,24 {
+	for k = 0,39 {
+		NOcell[j] PC2NO_syn[PC2NOcount] = new tanhSyn(0.01+k*0.0001)
+		setpointer PC2NO_syn[PC2NOcount].vpre, PCcell[j*40+k].v(0.5)
+		PC2NO_syn[PC2NOcount].g = 2.8e-5
+		PC2NO_syn[PC2NOcount].voff = -52
+		PC2NO_syn[PC2NOcount].rparam = 1
+		PC2NO_syn[PC2NOcount].alpha = 0.2
+		PC2NO_syn[PC2NOcount].tau = 35
+		PC2NO_syn[PC2NOcount].e = -80
+		
+		// Synaptic noise
+		NO_noisyn.play(&PC2NO_syn[PC2NOcount].noise)
+		PC2NOcount = PC2NOcount + 1
+	}
+}
+// PC-NO Pathway End
+////////////////////////////////////////////////
+
+////////////////////////////////////////////////
+// PYcell-PN-DCN Pathway (through mossy fiber)
+// AMPA
+objref PY2PN2DCN_syn_AMPA[100*5], NC_PY2PN2DCN_syn_AMPA[100*5]
+// NMDA
+objref PY2PN2DCN_syn_NMDA[100*5], NC_PY2PN2DCN_syn_NMDA[100*5]
+
+PY2DCNcount = 0
+for j = 0,24 {
+	for k = 0,19 {
+		DCNcell[j] PY2PN2DCN_syn_AMPA[PY2DCNcount] = new NoisyExpSyn(0.9+k*0.0001)
+		PY2PN2DCN_syn_AMPA[PY2DCNcount].tau = 1 // (ms)
+		PY2PN2DCN_syn_AMPA[PY2DCNcount].e = 0
+		PYcell[j*20+k] NC_PY2PN2DCN_syn_AMPA[PY2DCNcount] = new NetCon(&v(0.5), PY2PN2DCN_syn_AMPA[PY2DCNcount], -40, 1.7, 2.1e-4) // Delay determined from Ito et al., 1970
+		// Synaptic noise
+		DCN_noisyn.play(&PY2PN2DCN_syn_AMPA[PY2DCNcount].noise)
+
+		DCNcell[j] PY2PN2DCN_syn_NMDA[PY2DCNcount] = new NoisyExp2Syn(0.8+k*0.0001)
+		PY2PN2DCN_syn_NMDA[PY2DCNcount].tau1 = 1 // (ms)
+		PY2PN2DCN_syn_NMDA[PY2DCNcount].tau2 = 6 // (ms)
+		PY2PN2DCN_syn_NMDA[PY2DCNcount].e = 0
+		PYcell[j*20+k] NC_PY2PN2DCN_syn_NMDA[PY2DCNcount] = new NetCon(&v(0.5), PY2PN2DCN_syn_NMDA[PY2DCNcount], -40, 1.7, 1.26e-4)
+		// Synaptic noise
+		DCN_noisyn.play(&PY2PN2DCN_syn_NMDA[PY2DCNcount].noise)
+		
+		PY2DCNcount = PY2DCNcount +1
+	}
+}
+// PYcell-PN-DCN Pathway End
+////////////////////////////////////////////////

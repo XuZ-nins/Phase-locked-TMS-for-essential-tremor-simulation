@@ -1,0 +1,41 @@
+// Read rng Params
+objref f_rngParams
+f_rngParams = new File()
+f_rngParams.ropen("rngParams.txt")
+
+IONgapjgrnd = f_rngParams.scanvar()
+IONexrnd = f_rngParams.scanvar()
+IONexstrnd = f_rngParams.scanvar()
+PYNintrnd = f_rngParams.scanvar()
+FSIintrnd = f_rngParams.scanvar()
+TC2PYsynrnd = f_rngParams.scanvar()
+PY2TCsynrnd = f_rngParams.scanvar()
+PYnsrnd = f_rngParams.scanvar()
+PYnsintvrnd = f_rngParams.scanvar()
+GrC2PCwrnd = f_rngParams.scanvar()
+GrC2PCdrnd = f_rngParams.scanvar()
+
+f_rngParams.close()
+
+objref f_rngSeeds
+f_rngSeeds = new File()
+f_rngSeeds.ropen("rngSeeds.txt")
+
+IONrnd = f_rngSeeds.scanvar()
+PCrnd = f_rngSeeds.scanvar()
+DCNrnd = f_rngSeeds.scanvar()
+NOrnd = f_rngSeeds.scanvar()
+TCrnd = f_rngSeeds.scanvar()
+PYrnd = f_rngSeeds.scanvar()
+ION2PCrnd = f_rngSeeds.scanvar()
+ION2PCipscrnd = f_rngSeeds.scanvar()
+ION2DCNrnd = f_rngSeeds.scanvar()
+PC2DCNrnd = f_rngSeeds.scanvar()
+PC2NOrnd = f_rngSeeds.scanvar()
+DCN2IONrnd = f_rngSeeds.scanvar()
+DCN2TCrnd = f_rngSeeds.scanvar()
+PY2PYrnd = f_rngSeeds.scanvar()
+TC2PYrnd = f_rngSeeds.scanvar()
+GrL2PCrnd = f_rngSeeds.scanvar()
+
+f_rngSeeds.close()

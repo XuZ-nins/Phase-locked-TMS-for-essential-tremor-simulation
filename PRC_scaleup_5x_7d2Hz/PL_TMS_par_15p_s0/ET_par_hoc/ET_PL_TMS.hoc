@@ -1,0 +1,249 @@
+/* Author: Xu Zhang @UConn, Jan., 2020
+This script implements PL-TMS under tremor condition. Each pulse activates ~15% of PCs.
+*/
+
+load_file("nrngui.hoc")
+
+load_file("rngRead.hoc") // Load rng seeds
+noiseSwitch=1 // Membrane and synaptic noises, 1/0 = turn on/off
+
+// Loading individual cells
+load_file("cell_ION.hoc")
+load_file("cell_PC.hoc")
+load_file("cell_DCN.hoc")
+load_file("cell_TC.hoc")
+load_file("cell_MC.hoc")
+
+// Loading synaptic connections
+load_file("syn_ION_PC.hoc")
+load_file("syn_PC_DCN.hoc")
+load_file("syn_DCN_ION.hoc")
+load_file("syn_DCN_TC.hoc")
+load_file("syn_TC_MC.hoc")
+load_file("syn_MC_GrL.hoc")
+load_file("syn_GrL_PC.hoc")
+
+// One typical ET condition (tau = 12, R = 0.7)
+PCDCNtaurnd = 682
+PCDCNgrnd = 198
+objref rngPCDCNtau, PCDCNg
+rngPCDCNtau = new Random(PCDCNtaurnd)
+rngPCDCNtau.normal(12,4)
+PCDCNg = new Random(PCDCNgrnd)
+PCDCNg.normal(0.7,0.0196)
+for i = 0,999 {
+	PC2DCN_syn[i].tau = rngPCDCNtau.repick()
+	PC2DCN_syn[i].g = PC2DCN_syn[i].g*PCDCNg.repick()
+}
+
+// Push ION into oscillations; trigger tremor onset
+objref stimION[200]
+for i = 0,199 {
+	IONcell[i] stimION[i] = new IClamp(0.5)
+	stimION[i].amp = 1e-2
+	stimION[i].del = 1000
+	stimION[i].dur = 20
+}
+access DCNcell
+
+
+objref f_trialname
+f_trialname = new File()
+f_trialname.ropen("trialname_par.txt")
+
+strdef f_PCap, f_DCNap, f_Vimap, f_Vimap_RT, f_ION, f_PCv, f_iTMS
+f_trialname.scanstr(f_PCap)
+f_trialname.scanstr(f_DCNap)
+f_trialname.scanstr(f_Vimap)
+f_trialname.scanstr(f_Vimap_RT)
+f_trialname.scanstr(f_ION)
+f_trialname.scanstr(f_PCv)
+f_trialname.scanstr(f_iTMS)
+f_trialname.close()
+
+v_init = -57
+dt = 0.0125
+tstop = 0.25
+init()
+
+objref ss,f_ss
+ss = new SaveState()
+f_ss = new File("currentState.dat")
+ss.fread(f_ss)
+ss.restore()
+f_ss.close()
+
+objref f_IONparams
+f_IONparams= new File()
+f_IONparams.ropen("IONparams.txt")
+IONparam = f_IONparams.scanvar()
+f_IONparams.close()
+
+for i = 0,199 {stimION[i].del = IONparam}
+
+objref stim_amp, stim_time, tfile
+stim_amp = new Vector()
+stim_time = new Vector()
+tfile = new File()
+
+strdef tfile_name, ifile_name
+sprint(tfile_name,"tvec.txt")
+sprint(ifile_name,"ivec.txt")
+tfile.ropen(tfile_name)
+stim_time.vread(tfile)
+tfile.close()
+
+objref prcStim_group[1000], stim_amp_group[1000], stim_amp_vec
+objref ifile[1000]
+stim_amp_vec = new Vector(1000)
+
+objref f_amp
+f_amp= new File()
+f_amp.ropen("amp_15p.txt")
+for i = 0,999 {
+	PCcell[i] prcStim_group[i] = new IClamp(0.3)
+	prcStim_group[i].del = 0
+	prcStim_group[i].dur = 1e9
+	tmpamp = f_amp.scanvar()
+	stim_amp_vec.x[i] = tmpamp
+	ifile[i] = new File()
+	ifile[i].ropen(ifile_name)
+	stim_amp_group[i] = new Vector()
+	stim_amp_group[i].vread(ifile[i])
+	ifile[i].close()
+	stim_amp_group[i] = stim_amp_group[i].mul(tmpamp)
+}
+f_amp.close()
+
+// Record PC
+objref apc_PC[1000], apPC[1000]
+for i = 0,999 {
+PCcell[i] apc_PC[i] = new APCount(0.5)
+apc_PC[i].thresh = -45
+apPC[i] = new Vector()
+apc_PC[i].record(apPC[i])
+}
+
+// Record DCN
+objref apc_DCN[25], apDCN[25]
+for i = 0,24 {
+DCNcell[i] apc_DCN[i] = new APCount(0.5)
+apc_DCN[i].thresh = -45
+apDCN[i] = new Vector()
+apc_DCN[i].record(apDCN[i])
+}
+
+// Record Vim
+objref apc_Vim[25], apVim[25]
+for i = 0,24 {
+TCcell[i] apc_Vim[i] = new APCount(0.5)
+apc_Vim[i].thresh = -45
+apVim[i] = new Vector()
+apc_Vim[i].record(apVim[i])
+}
+
+// Record ION
+objref apc_ION[200], apION[200]
+for i = 0,199 {
+IONcell[i] apc_ION[i] = new APCount(0.5)
+apc_ION[i].thresh = -45
+apION[i] = new Vector()
+apc_ION[i].record(apION[i])
+}
+
+//////////////////////////////////////////////////////////////////
+// Simulation starts											//
+//																//
+// Set up synaptic transmission delays between PC-DCN and PC-NO	//
+// continuerun(t+tstop)											//
+t0 = t
+while (t < t0+tstop) {
+	for i = 0,999 {
+		prcStim_group[i].amp = stim_amp_group[i].x[t/dt+1]
+		prcStim_group[i].i = prcStim_group[i].amp
+	}
+    fadvance()
+}
+//																//
+//////////////////////////////////////////////////////////////////
+//																//
+//////////////////////////////////////////////////////////////////
+
+// Record PC
+objref rec_v_PC
+rec_v_PC = new Vector()
+rec_v_PC.append(PCcell[118].v(0.5))
+
+// Record SIN
+objref rec_prcStim
+rec_prcStim = new Vector()
+rec_prcStim.append(prcStim_group[0].i)
+
+// Save PC
+objref rec_PC
+rec_PC = new File()
+rec_PC.aopen(f_PCap)
+for i = 0,999 {
+    if (apPC[i].size()>0) {rec_PC.printf("%d,%f\n",i,apPC[i].x[0])}
+}
+rec_PC.close()
+
+// Save DCN
+objref rec_DCN
+rec_DCN = new File()
+rec_DCN.aopen(f_DCNap)
+for i = 0,24 {
+    if (apDCN[i].size()>0) {rec_DCN.printf("%d,%f\n",i,apDCN[i].x[0])}
+}
+rec_DCN.close()
+
+// Save Vim
+objref rec_Vim
+rec_Vim = new File()
+rec_Vim.aopen(f_Vimap)
+for i = 0,24 {
+    if (apVim[i].size()>0) {rec_Vim.printf("%d,%f\n",i,apVim[i].x[0])}
+}
+rec_Vim.close()
+
+// Save Vim (real-time)
+objref rec_Vim_RT
+rec_Vim_RT = new File()
+rec_Vim_RT.wopen(f_Vimap_RT)
+for i = 0,24 {
+    if (apVim[i].size()>0) {rec_Vim_RT.printf("%d,%f\n",i,apVim[i].x[0])}
+}
+rec_Vim_RT.close()
+
+// Save PC
+objref sav_v_PC
+sav_v_PC = new File()
+sav_v_PC.aopen(f_PCv)
+rec_v_PC.printf(sav_v_PC)
+sav_v_PC.close()
+
+// Save ION
+objref rec_ION
+rec_ION = new File()
+rec_ION.aopen(f_ION)
+for i = 0,199 {
+    if (apION[i].size()>0) {rec_ION.printf("%d,%f\n",i,apION[i].x[0])}
+}
+rec_ION.close()
+
+// Save SIN
+objref sav_prcStim
+sav_prcStim = new File()
+sav_prcStim.aopen(f_iTMS)
+rec_prcStim.printf(sav_prcStim)
+sav_prcStim.close()
+
+objref ss,f_ss
+ss = new SaveState()
+f_ss = new File()
+ss.save()
+f_ss.wopen("currentState.dat")
+ss.fwrite(f_ss)
+f_ss.close()
+
+quit()

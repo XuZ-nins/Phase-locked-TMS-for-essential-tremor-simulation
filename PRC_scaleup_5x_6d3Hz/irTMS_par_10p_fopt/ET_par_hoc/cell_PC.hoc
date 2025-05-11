@@ -1,0 +1,77 @@
+/*
+Modified from Johannes Luthman et al., 2011 by including
+	40 PCs with different offset currents, temperature, 
+	and membrane noises
+Xu Zhang @UConn, Jul., 2018
+*/
+
+// To execute this script individually, please specify the following variables, e.g.:
+// PCrnd = 102 // rng seed
+// noiseSwitch=1
+// dt = 0.0125
+
+celsius = 36  // (degC)
+
+create PCcell[200*5]
+
+objref ocPC[200*5]
+
+double ocPC_amp[200*5]
+// Read offset currents from the file Ioc = -3e-4 + gamma(0.8,3.7e-3)
+objref f_ocPC
+f_ocPC = new File()
+f_ocPC.ropen("params_PC_oc.txt")
+
+for i = 0,999 {
+	ocPC_amp[i] = f_ocPC.scanvar()
+}
+f_ocPC.close()
+
+for i = 0,999 {
+	access PCcell[i]
+	PCcell[i].nseg = 1
+	PCcell[i].L = 20		// (um)       
+	PCcell[i].diam = 20	// (um)
+	PCcell[i].cm = 1       // (uF/cm2)
+
+	insert pcNarsg
+	insert pcNa
+	insert pcKv1
+	insert pcKv4
+	insert pcKbin
+	insert pcCaBK
+	insert pcCaint
+	insert pcCaP
+	insert pcIhcn
+	insert pcleak
+
+	PCcell[i].ena = 60	// (mV)
+	PCcell[i].ek = -88	// (mV)
+	PCcell[i].eh_pcIhcn = -30
+	PCcell[i].e_pcleak = -61
+	PCcell[i].cao = 2   // (mM)
+		 
+	PCcell[i].gbar_pcNarsg = 0.016     // (mho/cm2)
+	PCcell[i].gbar_pcNa = 0.014
+	PCcell[i].gbar_pcKv1 = 0.011
+	PCcell[i].gbar_pcKv4 = 0.0039
+	PCcell[i].gbar_pcKbin = 0.0016
+	PCcell[i].gkbar_pcCaBK = 0.014
+	PCcell[i].pcabar_pcCaP = 0.00006
+	PCcell[i].ghbar_pcIhcn = 0.0002
+	PCcell[i].gbar_pcleak = 9e-5
+
+	PCcell[i] ocPC[i] = new IClamp(0.5)
+	ocPC[i].amp = ocPC_amp[i]*0.8-0.0003 //*0.5-0.0005
+	ocPC[i].del = 0
+	ocPC[i].dur = 1e10
+}
+
+// Membrane noise in PC
+objref PC_noisc, PCnoise[1000]
+PC_noisc = new Random(PCrnd)
+PC_noisc.normal(0, 1e-6*noiseSwitch)
+for i = 0,999 {
+	PCcell[i] PCnoise[i] = new NoisyCurrent(0.2)
+	PC_noisc.play(&PCnoise[i].noise)
+}

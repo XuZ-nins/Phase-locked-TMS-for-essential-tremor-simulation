@@ -1,0 +1,123 @@
+/* Author: Xu Zhang @UConn, Jul., 2018
+ION: inferior olivary nucleus neurons
+Modified from Schweighofer et al., 1999 and Torben-Nielson et al., 2012
+*/
+
+// To execute this script individually, please specify the following variables, e.g.:
+// IONrnd = 101 // rng seed
+// IONexrnd = 102
+// IONexstrnd = 103
+// IONgapjgrnd = 104
+// noiseSwitch=1
+// dt = 0.0125
+
+create IONcell[200]
+
+for i = 0,199 {
+	access IONcell[i]
+    IONcell[i].nseg = 1
+    IONcell[i].L = 20
+    IONcell[i].diam = 20
+    IONcell[i].cm = 1 // (uF/cm2)
+	
+    insert ioKdr
+    insert ioNa
+    insert ioCa
+    insert pas
+	insert ioh
+	
+	IONcell[i].ek = -70   // (mV)
+	IONcell[i].ena = 55	// (mV)
+	IONcell[i].e_pas = -63
+     
+	IONcell[i].gbar_ioKdr = 9	// (mS/cm2)
+	IONcell[i].gbar_ioNa = 37 //+i	// (mS/cm2)
+	IONcell[i].gbar_ioh = 0.08 // (mS/cm2)
+	IONcell[i].gbar_ioCa = 0.27 // (mS/cm2)
+	// IONcell[i].gbar_ioh = 0.02 // (mS/cm2)
+	// IONcell[i].gbar_ioca = 0.3 // (mS/cm2) Harmaline
+	IONcell[i].g_pas = 0.13e-3 // +i*0.005e-3 // (S/cm2)
+}
+
+objref f_gapj
+f_gapj = new File()
+f_gapj.ropen("params_ION_gapj.txt")
+IONgaptotal = f_gapj.scanvar()
+double IONgapnum[200]
+for i = 0,199 {
+	IONgapnum[i] = f_gapj.scanvar()
+}
+
+objref gapjunc[IONgaptotal]
+gapjuncount = 0
+for j = 0,199 {
+	for k = 0,IONgapnum[j]-1 {
+		IONcell[j] gapjunc[gapjuncount] = new iogap(0.9-0.1*k)
+		setpointer gapjunc[gapjuncount].vgap, IONcell[f_gapj.scanvar()-1].v(0.5)
+		gapjuncount = gapjuncount + 1
+	}
+}
+f_gapj.close()
+
+max_gap_g = 5e-5
+
+// Varying ION gap junction strengths
+objref rngIONgapjg
+rngIONgapjg = new Random(IONgapjgrnd)
+rngIONgapjg.uniform(0.3,0.7)
+for i = 0,IONgaptotal-1 {
+	gapjunc[i].g = rngIONgapjg.repick() * max_gap_g * 1.5
+}
+
+// Offset current
+objref ION_oc_file
+ION_oc_file = new File()
+ION_oc_file.ropen("params_ION_oc.txt")
+objref ocION[200]
+for i = 0,199 {
+	IONcell[i] ocION[i] = new IClamp(0.5)
+	ocION[i].amp = ION_oc_file.scanvar() // Normal
+	ocION[i].del = 0
+	ocION[i].dur = 1e10
+}
+ION_oc_file.close()
+
+// External source of input to IO (that generate a <1 Hz firing rate in the absence of NO-IO pathway)
+objref rngIONex, rngIONexst
+rngIONex = new Random(IONexrnd)
+rngIONex.uniform(350,650)
+rngIONexst = new Random(IONexstrnd)
+rngIONexst.uniform(50,200)
+objref EX2ION_syn_exc[200], EX2IONns[200], EX2IONnsnc[200]
+
+// Initialize
+excount = 0
+tmpinterval = rngIONex.repick()
+tmpstart =rngIONexst.repick()
+for i = 0,199 {
+	excount_new = int(i/8)
+	IONcell[i] EX2ION_syn_exc[i] = new NoisyExp2Syn(0.35)
+	EX2ION_syn_exc[i].tau1 = 2 // (ms)
+	EX2ION_syn_exc[i].tau2 = 10 // (ms)
+	EX2ION_syn_exc[i].e = 0
+	IONcell[i] EX2IONns[i] = new NetStim(0.2)
+	EX2IONns[i].number=1e4
+	EX2IONns[i].noise=1
+	if (excount_new>excount) {
+		tmpinterval = rngIONex.repick()
+		tmpstart =rngIONexst.repick()
+		excount = excount_new
+	}
+	EX2IONns[i].interval=tmpinterval
+	EX2IONns[i].start=tmpstart
+	IONcell[i] EX2IONnsnc[i] = new NetCon(EX2IONns[i], EX2ION_syn_exc[i], 0, 0, 1.5e-5)
+}
+
+// Membrane noise in IO
+objref ION_noisc, IONnoise[200]
+ION_noisc = new Random(IONrnd)
+ION_noisc.normal(0, 1e-5*noiseSwitch)
+for i = 0,199 {
+	IONcell[i] IONnoise[i] = new NoisyCurrent(0.2)
+	ION_noisc.play(&IONnoise[i].noise)
+}

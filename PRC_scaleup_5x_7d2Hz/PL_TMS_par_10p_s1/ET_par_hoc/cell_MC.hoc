@@ -1,0 +1,201 @@
+/* Author: Xu Zhang @UConn, Jul., 2018
+Motor cortical neurons: PYN and FSI (abbreviated as PY and FS in the script, respectively)
+Modified from Destexhe et al., 1998
+*/
+
+// To execute this script individually, please specify the following variables, e.g.:
+// PY2PYrnd = 106 // rng seed
+// PYrnd = 107
+// PYNintrnd = 207
+// FSIintrnd = 307
+// noiseSwitch=1
+// dt = 0.0125
+
+celsius = 36
+
+// Low-threshold spiking pyramidal neurons * 100
+
+create PYcell[100*5]
+objref ocPY[100*5]
+
+for i = 0,499 {
+	access PYcell[i]
+
+	PYcell[i].Ra = 100		// geometry 
+	PYcell[i].nseg = 1
+	PYcell[i].diam = 96
+	PYcell[i].L = 96			// such that area is about 58000 um2
+	PYcell[i].cm = 1
+
+	insert pas
+	insert mchh2
+	insert mcIm
+	insert mcCad
+	insert mcIt
+
+	// pas
+	// PYcell[i].e_pas = -70
+	// PYcell[i].g_pas = 1e-5
+	PYcell[i].ek = -100
+	PYcell[i].ena = 50
+	// hh2
+	PYcell[i].vtraub_mchh2 = -55	// Resting Vm, BJ was -55
+	// PYcell[i].gnabar_hh2 = 0.05	// McCormick=15 muS, thal was 0.09
+	// PYcell[i].gkbar_hh2 = 0.005	// spike duration of pyr cells
+	// im
+	taumax_im = 1000
+	// PYcell[i].gkbar_im = 3e-5		// specific to LTS pyr cell
+	// cad
+	PYcell[i].depth_mcCad = 1		// McCormick= 0.1 um
+	PYcell[i].taur_mcCad = 5		// McCormick=1 ms !!!
+	PYcell[i].cainf_mcCad = 2.4e-4	// McCormick=0
+	PYcell[i].kt_mcCad = 0		// no pump
+	// it
+	PYcell[i].cai = 2.4e-4 
+	PYcell[i].cao = 2 
+	PYcell[i].eca = 120 
+	// PYcell[i].gcabar_it = 0.001	// specific to LTS pyr cell
+
+	// Change parameters to LTS
+	PYcell[i].gcabar_mcIt = 4e-4
+	PYcell[i].gkbar_mcIm = 3e-5
+	PYcell[i].g_pas = 1e-5
+	PYcell[i].e_pas = -85
+	PYcell[i].gnabar_mchh2 = 0.05
+	PYcell[i].gkbar_mchh2 = 0.005
+
+	PYcell[i] ocPY[i] = new IClamp(0.5)
+	ocPY[i].amp = 0.17 // (nA) Simulate baseline activity
+	ocPY[i].del = 0
+	ocPY[i].dur = 1e10
+}
+
+// Connect PY2PY
+objref PY2PYsyn[200*5]
+
+// Synaptic noise within PY
+objref PYi_noisyn
+PYi_noisyn = new Random(PY2PYrnd)
+PYi_noisyn.normal(0, 1e-6*noiseSwitch)
+
+// Random interconnections among PYNs
+objref rngPYNint
+rngPYNint = new Random(PYNintrnd)
+rngPYNint.normal(1,0.04)
+
+objref f_pynint
+f_pynint = new File()
+f_pynint.ropen("params_PY_int.txt")
+pyninttotal = f_pynint.scanvar()
+pynintcount = 0
+for j = 0,499 {
+	for k = 0,1 {
+		PYcell[j] PY2PYsyn[pynintcount] = new tanhSyn(0.95-0.01*k)
+		setpointer PY2PYsyn[pynintcount].vpre, PYcell[f_pynint.scanvar()-1].v(0.5)
+		PY2PYsyn[pynintcount].g = PY2PYsyn[pynintcount].g * abs(rngPYNint.repick()) * 100/5 // /5 Due to scaling
+		PYi_noisyn.play(&PY2PYsyn[pynintcount].noise)
+		pynintcount = pynintcount + 1
+	}
+}
+f_pynint.close()
+
+// Fast-spiking interneurons * 10
+
+create FScell[10*5]
+objref OCFS[10*5]
+
+for i = 0,49 {
+	access FScell[i]
+
+	FScell[i].Ra = 100		// geometry 
+	FScell[i].nseg = 1
+	FScell[i].diam = 67
+	FScell[i].L = 67			// such that area is about 29000 um2
+	FScell[i].cm = 1
+
+	insert pas
+	insert mchh2
+
+	// pas
+	FScell[i].ek = -100
+	FScell[i].ena = 50
+	// hh2
+	FScell[i].vtraub_mchh2 = -55	// Resting Vm, BJ was -55
+
+	FScell[i].g_pas = 0.00015
+	FScell[i].e_pas = -70
+	FScell[i].gnabar_mchh2 = 0.05
+	FScell[i].gkbar_mchh2 = 0.01
+
+	FScell[i] OCFS[i] = new IClamp(0.5)
+	OCFS[i].amp = 0.15 // (nA) Simulate background excitation from prefrontal cortex
+	OCFS[i].del = 0
+	OCFS[i].dur = 1e10
+}
+
+
+// Connect FS2FS
+objref FS2FSsyn[49*50]
+fsiintcount = 0
+for j = 0,49 {
+	for k = 0,49 {
+		if (k != j) {
+			FScell[j] FS2FSsyn[fsiintcount] = new tanhSyn(0.6)
+			FS2FSsyn[fsiintcount].alpha = 5
+			FS2FSsyn[fsiintcount].tau = 5.56
+			FS2FSsyn[fsiintcount].e = -80
+			FS2FSsyn[fsiintcount].g = 0.0015/49 // /9 Due to scaling
+			setpointer FS2FSsyn[fsiintcount].vpre, FScell[k].v(0.5)
+			PYi_noisyn.play(&FS2FSsyn[fsiintcount].noise) // Synaptic noise
+			fsiintcount = fsiintcount + 1
+		}
+	}
+}
+
+// Connect PY2FS
+objref PY2FSsyn[1000*25]
+pynfsicount = 0
+for k = 0,49 {
+	for j = 0,499 {
+		FScell[k] PY2FSsyn[pynfsicount] = new tanhSyn(0.5+0.001*j)
+		setpointer PY2FSsyn[pynfsicount].vpre, PYcell[j].v(0.5)
+		PY2FSsyn[pynfsicount].g = 0.0025/25 // /5 Due to scaling
+		PYi_noisyn.play(&PY2FSsyn[pynfsicount].noise)
+		pynfsicount = pynfsicount +1
+	}
+}
+
+// Random interconnections FSI-PYN
+objref rngFSIint
+rngFSIint = new Random(FSIintrnd)
+rngFSIint.normal(1,0.0256)
+
+// Connect FS2PY
+objref FS2PYsyn[1000*25]
+fsipyncount = 0
+for k = 0,499 {
+	for j = 0,49 {
+		PYcell[k] FS2PYsyn[fsipyncount] = new tanhSyn(0.4+0.001*j)
+		setpointer FS2PYsyn[fsipyncount].vpre, FScell[j].v(0.5)
+		FS2PYsyn[fsipyncount].alpha = 5
+		FS2PYsyn[fsipyncount].tau = 5.56
+		FS2PYsyn[fsipyncount].e = -80
+		FS2PYsyn[fsipyncount].g = 2.2e-2 * abs(rngFSIint.repick())/50 // /10 Due to scaling
+		PYi_noisyn.play(&FS2PYsyn[fsipyncount].noise)
+		fsipyncount = fsipyncount + 1
+	}
+}
+
+// Membrane noise in PY
+objref MC_noisc, PYnoise[200*5], FSnoise[10*5]
+MC_noisc = new Random(PYrnd)
+MC_noisc.normal(0, 1e-1*noiseSwitch)
+for i = 0,499 {
+	PYcell[i] PYnoise[i] = new NoisyCurrent(0.2)
+	MC_noisc.play(&PYnoise[i].noise)
+}
+// Membrane noise in FS
+for i = 0,49 {
+	FScell[i] FSnoise[i] = new NoisyCurrent(0.2)
+	MC_noisc.play(&FSnoise[i].noise)
+}

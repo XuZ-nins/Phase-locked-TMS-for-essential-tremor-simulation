@@ -1,0 +1,87 @@
+/* Author: Xu Zhang @UConn, Jan., 2019
+Synaptic mechanisms between PY (MC)-GrL
+The 3 types of integrate-and-fire neurons in GrL are created in this script.
+This script cannot be executed individually
+*/
+
+//////////////////////////////////////////////
+// Relay of PYcell inputs by PN (mossy fiber)
+
+objref PY2PNnum
+PY2PNnum = new Vector(20*5)
+PY2PNnum.indgen(4, 100*5, 100*5/(20*5))
+//////////////////////////////////////////////
+
+//////////////////////////////////////////////
+
+objref GRcell[20*5], GOcell[20*5], STLcell[20*5]
+objref syn_mfgrc_ampa[20*5], syn_mfgrc_nmda[20*5], syn_mfgoc_ampa[20*5]
+
+for k = 0,99 {
+	PY2PNtmp = int(PY2PNnum.x[k])
+	PYcell[PY2PNtmp] GRcell[k] =  new GrC(0.92)
+	PYcell[PY2PNtmp] GOcell[k] =  new GoC(0.95)
+	PYcell[PY2PNtmp] STLcell[k] =  new StellC(0.98)
+
+	PYcell[PY2PNtmp] syn_mfgoc_ampa[k] = new NetCon(&v(1), GOcell[k], -40, 3+1, 1*50) // Delay (3 ms) determined from Sasaki et al., 1970 (Ito 1970?)
+	PYcell[PY2PNtmp] syn_mfgrc_ampa[k] = new NetCon(&v(1), GRcell[k], -40, 3+1, 0.87*4)
+	PYcell[PY2PNtmp] syn_mfgrc_nmda[k] = new NetCon(&v(1), GRcell[k], -40, 3+1, 0.087*4)
+}
+
+////////// GRANULE CELL //////////
+// Synaptic inputs to Granule cell
+objref syn_gocgrc_gaba[20*5]
+for k = 0,99 {
+GOcell[k] syn_gocgrc_gaba[k] = new NetCon(GOcell[k], GRcell[k], -50, 0.5, 1.5*4)
+}
+
+// (Roundabout) spike detection mechanism in Granule cell
+/* Not a very smart way of spike detection. Here it is achieved by sending a particular
+	NetCon event which has the specific weight 0.02 after every NetStim interval. This 
+	weight is recognized inside GrL cell mechanism (grl_grc.mod) to check whether to 
+	trigger the spiking	event. Same for Golgi cell and stellate cell.
+*/
+objref grcspk[20*5] ,grcspknc[20*5]
+for k = 0,99 {
+GRcell[k] grcspk[k] = new NetStim(0.5)
+grcspk[k].number=1e10
+grcspk[k].interval=0.5
+grcspk[k].start=0
+grcspk[k].noise=0
+grcspk[k] grcspknc[k] = new NetCon(grcspk[k], GRcell[k], 0, 0, 0.02)
+}
+
+////////// GOLGI CELL //////////
+// Synaptic inputs to Golgi cell
+objref syn_grcgoc_ampa[20*5], syn_scgoc_gaba[20*5]
+for k = 0,99 {
+GRcell[k] syn_grcgoc_ampa[k] = new NetCon(GRcell[k], GOcell[k], -40, 1, 3*100)
+STLcell[k] syn_scgoc_gaba[k] = new NetCon(STLcell[k], GOcell[k], -40, 1, 0.25*50)
+}
+// Spike detection in Golgi cell
+objref gocspk[20*5], gocspknc[20*5]
+for k = 0,99 {
+GOcell[k] gocspk[k] = new NetStim(0.5)
+gocspk[k].number=1e10
+gocspk[k].interval=0.5
+gocspk[k].start=0
+gocspk[k].noise=0
+gocspk[k] gocspknc[k] = new NetCon(gocspk[k], GOcell[k], 0, 0, 0.02)
+}
+
+////////// STELLATE CELL //////////
+// Synaptic inputs to Stellate cell
+objref syn_grcsc_ampa[20*5]
+for k = 0,99 {
+GRcell[k] syn_grcsc_ampa[k] = new NetCon(GRcell[k], STLcell[k], -40, 1, 0.3*100)
+}
+// Spike detection in Stellate cell
+objref scspk[20*5], scspknc[20*5]
+for k = 0,99 {
+STLcell[k] scspk[k] = new NetStim(0.5)
+scspk[k].number=1e10
+scspk[k].interval=0.5
+scspk[k].start=0
+scspk[k].noise=0
+scspk[k] scspknc[k] = new NetCon(scspk[k], STLcell[k], 0, 0, 0.02)
+}

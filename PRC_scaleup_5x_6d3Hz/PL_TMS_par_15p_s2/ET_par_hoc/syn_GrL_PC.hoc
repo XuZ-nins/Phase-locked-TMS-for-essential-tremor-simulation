@@ -1,0 +1,42 @@
+/* Author: Xu Zhang @UConn, Jan., 2019
+Synaptic mechanisms between GrL-PC (parallel fiber)
+This script cannot be executed individually
+*/
+
+// Synaptic noise to PC
+objref PC_noisyn
+PC_noisyn = new Random(GrL2PCrnd)
+PC_noisyn.normal(0, 5e-9*noiseSwitch)
+
+// Varying GrC-PC synaptic weights
+objref rngGrC2PCw
+rngGrC2PCw = new Random(GrC2PCwrnd)
+rngGrC2PCw.normal(1,0.5)
+
+// Varying GrC-PC synaptic delays
+objref rngGrC2PCd
+rngGrC2PCd = new Random(GrC2PCdrnd)
+rngGrC2PCd.uniform(0,10)
+
+objref GrC2PC_syn[200*5], NC_GrC2PC_syn[200*5]
+
+GrC2PCcount = 0
+
+for j = 0,99 {
+	for k = 0,9 {
+		PCcell[j*10+k] GrC2PC_syn[GrC2PCcount] = new NoisyExp2Syn(0)
+
+		GrC2PC_syn[GrC2PCcount].tau1 = 1.2
+		GrC2PC_syn[GrC2PCcount].tau2 = 14 // Determined from Isope and Barbour, 2002
+		// GrC2PC_syn[GrC2PCcount].tau = 200 // A different case reported in Atluri and Regehr, 2002
+		GrC2PC_syn[GrC2PCcount].e = 0
+
+		// delay+3 because of earlier detection of artificial AP roughly by 3 ms due to GrL netevent() mechanisms
+		GRcell[j] NC_GrC2PC_syn[GrC2PCcount] = new NetCon(&v(0.9-k*0.001), GrC2PC_syn[GrC2PCcount], -40, abs(rngGrC2PCd.repick())+3, abs(rngGrC2PCw.repick())*3.27e-5)
+
+		// Synaptic noise
+		PC_noisyn.play(&GrC2PC_syn[GrC2PCcount].noise)
+		
+		GrC2PCcount = GrC2PCcount + 1
+	}
+}

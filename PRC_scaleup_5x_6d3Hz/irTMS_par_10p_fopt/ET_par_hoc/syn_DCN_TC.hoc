@@ -1,0 +1,22 @@
+/* Author: Xu Zhang @UConn, Jan., 2019
+Synaptic mechanisms between DCN-TC (Vim)
+This script cannot be executed individually
+*/
+
+// Synapse DCN-TC
+
+// Synaptic noise to TCcell
+objref DCN2TC_noisyn
+DCN2TC_noisyn = new Random(DCN2TCrnd)
+DCN2TC_noisyn.normal(0, 1e-5*noiseSwitch)
+
+// AMPA
+objref DCN2TC_syn_ampa[25], NC_DCN2TC_syn_ampa[25]
+for i = 0,24 {
+	TCcell[i] DCN2TC_syn_ampa[i] = new NoisyExp2Syn(0.89)
+	DCN2TC_syn_ampa[i].tau1 = 1.3// (ms)
+	DCN2TC_syn_ampa[i].tau2 = 20 // (ms)
+	DCN2TC_syn_ampa[i].e = 0
+	DCNcell[i] NC_DCN2TC_syn_ampa[i] = new NetCon(&v(0.1), DCN2TC_syn_ampa[i], -40, 2, 1.5e-3) // Delay and tau1/2 determined from Uno et al., 1970
+	DCN2TC_noisyn.play(&DCN2TC_syn_ampa[i].noise)
+}

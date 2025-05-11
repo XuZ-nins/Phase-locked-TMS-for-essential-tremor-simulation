@@ -1,0 +1,92 @@
+/* Author: Xu Zhang @UConn, Jan., 2019
+Synaptic mechanisms between TC (Vim)-MC (PYN and FSI; abbreviated as PY and FS in the script, respectively)
+This script cannot be executed individually
+*/
+
+// Varying TC-PYN synaptic strengths
+objref rngTC2PY
+rngTC2PY = new Random(TC2PYsynrnd)
+rngTC2PY.normal(1,0.0625)
+
+// Varying PYN-TC synaptic strengths
+objref rngPY2TC
+rngPY2TC = new Random(PY2TCsynrnd)
+rngPY2TC.normal(1,0.25)
+
+// Poisson process inputs to PYNs
+objref rngPYns
+rngPYns = new Random(PYnsrnd)
+rngPYns.normal(1,0.25)
+objref rngPYnsintv
+rngPYnsintv = new Random(PYnsintvrnd)
+rngPYnsintv.normal(20,25)
+
+// Synaptic noise to PY/TC
+objref PY_noisyn
+PY_noisyn = new Random(TC2PYrnd)
+PY_noisyn.normal(0, 1e-6*noiseSwitch)
+
+// AMPA
+objref TC2PY_syn_ampa[30*5], NC_TC2PY_syn_ampa[30*5]
+
+// TCcell inputs
+// for k = 0,19 {
+objref TC2PYnum
+TC2PYnum = new Vector(30*5)
+TC2PYnum.indgen(0, 100*5, 100*5/(30*5))
+for k = 0,149 {
+	TC2PYtmp = int(TC2PYnum.x[k])
+	PYcell[TC2PYtmp] TC2PY_syn_ampa[k] = new NoisyExpSyn(0.4)
+
+	TC2PY_syn_ampa[k].tau = 5.26 // (ms)
+	TC2PY_syn_ampa[k].e = 0
+	TCcell[int(k/6)] NC_TC2PY_syn_ampa[k] = new NetCon(&v(0.1), TC2PY_syn_ampa[k], -40, 1, 0.015*abs(rngTC2PY.repick())) // Delay determined from Walker et al., 2012// Synaptic noise
+	PY_noisyn.play(&TC2PY_syn_ampa[k].noise)
+}
+
+// Basal Ganglia inputs
+objref BG_syn_exc[100*5], PYns[100*5], PYnsnc[100*5]
+for i = 0,499 {
+	PYcell[i] BG_syn_exc[i] = new NoisyExpSyn(0.25)
+	BG_syn_exc[i].tau = 3 // (ms)
+	BG_syn_exc[i].e = 0
+	PYcell[i] PYns[i] = new NetStim(0.15)
+	PYns[i].number=1e10
+	PYns[i].interval=abs(rngPYnsintv.repick())
+	PYns[i].start=0
+	PYns[i].noise=1
+	PYcell[i] PYnsnc[i] = new NetCon(PYns[i], BG_syn_exc[i], 0, 0, 0.0022*abs(rngPYns.repick()))
+}
+
+// Synapse TC-FS
+// TC-FS Pathway
+// AMPA
+objref TC2FS_syn_ampa[10*5], NC_TC2FS_syn_ampa[10*5], TC2FS_noisyn_ampa[10*5]
+
+for i = 0,49 {
+	FScell[i] TC2FS_syn_ampa[i] = new NoisyExpSyn(0.4)
+
+	TC2FS_syn_ampa[i].tau = 5.26 // (ms)
+	TC2FS_syn_ampa[i].e = 0
+	TCcell[int(i/5)] NC_TC2FS_syn_ampa[i] = new NetCon(&v(0.1), TC2FS_syn_ampa[i], -40, 2, 9e-4) // Delay determined from Walker et al., 2012
+	PY_noisyn.play(&TC2FS_syn_ampa[i].noise)
+}
+
+// Synapse PY-TC
+// PY-TC Pathway
+// AMPA
+objref PY2TC_syn_ampa[20*5], NC_PY2TC_syn_ampa[20*5]
+
+// for i = 0,19 {
+objref PY2TCnum
+PY2TCnum = new Vector(20*5)
+PY2TCnum.indgen(2, 100*5, 100*5/(20*5))
+for k = 0,99 {
+	PY2TCtmp = int(PY2TCnum.x[k])
+	TCcell[int(k/4)] PY2TC_syn_ampa[k] = new NoisyExpSyn(0.4+0.001*k)
+
+	PY2TC_syn_ampa[k].tau = 5.26 // (ms)
+	PY2TC_syn_ampa[k].e = 0
+	PYcell[PY2TCtmp] NC_PY2TC_syn_ampa[k] = new NetCon(&v(0.1), PY2TC_syn_ampa[k], -40, 1, 9e-4*abs(rngTC2PY.repick())) // Delay determined from Walker et al., 2012
+	PY_noisyn.play(&PY2TC_syn_ampa[k].noise)
+}

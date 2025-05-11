@@ -1,0 +1,80 @@
+/* Author: Xu Zhang @UConn, Jan., 2019
+Synaptic mechanisms between NO-ION and DCN-RN-ION
+This script cannot be executed individually
+*/
+
+// Synaptic noise to ION
+objref ION_noisyn
+ION_noisyn = new Random(DCN2IONrnd)
+ION_noisyn.normal(0, 1e-12*noiseSwitch)
+
+// Nucleo-olivary inhibitory pathway
+objref NO2ION_syn[40*5], NC_NO2ION_syn[40*5]
+
+NO2IONcount = 0
+// GABA synapse NO-ION
+for j = 0,24 {
+	for k = 0,7 {
+		IONcell[j*8+k] NO2ION_syn[NO2IONcount] = new NoisyExp2Syn(0.55)
+		NO2ION_syn[NO2IONcount].tau1 = 40 // (ms)
+		NO2ION_syn[NO2IONcount].tau2 = 180 // (ms)
+		NO2ION_syn[NO2IONcount].e = -65 // Lefler et al., 2014
+		NOcell[j] NC_NO2ION_syn[NO2IONcount] = new NetCon(&v(0.5), NO2ION_syn[NO2IONcount], -40, 45, 3e-5)
+		// Synaptic noise
+		ION_noisyn.play(&NO2ION_syn[NO2IONcount].noise)
+		NO2IONcount = NO2IONcount + 1
+	}
+}
+
+objref NC_NO2IONgap[IONgaptotal]
+
+// Decoupling effects of NO-ION GABA
+for i = 0,IONgaptotal-1 {
+	gapjunc[i].tau1 = 40 // (ms)
+	gapjunc[i].tau2 = 180 // (ms)
+	NOcell[int(i/(IONgaptotal/5))] NC_NO2IONgap[i] = new NetCon(&v(0.5), gapjunc[i], -40, 45, 0.15)
+}
+
+// DCN-Red nucleus-ION excitatory pathway
+// objref DCN2RN2ION_syn[40], NC_DCN2RN2ION_syn[40]
+
+// DCN2IONcount = 0
+// // Excitatory synapse DCN-RN-ION (RN: red nucleus)
+// for j = 0,4 {
+	// for k = 0,7 {
+		// IONcell[j*8+k] DCN2RN2ION_syn[DCN2IONcount] = new NoisyExp2Syn(0.65)
+		// DCN2RN2ION_syn[DCN2IONcount].tau1 = 2	// (ms)
+		// DCN2RN2ION_syn[DCN2IONcount].tau2 = 10 // (ms)
+		// DCN2RN2ION_syn[DCN2IONcount].e = 0
+		// DCNcell[j] NC_DCN2RN2ION_syn[DCN2IONcount] = new NetCon(&v(0.5), DCN2RN2ION_syn[DCN2IONcount], -40, 15, 1e-5) // Delay estimated from Ruigrok and Voogd, 1995; Oka and Jinnai, 1978
+		// // Synaptic noise
+		// ION_noisyn.play(&DCN2RN2ION_syn[DCN2IONcount].noise)
+		// DCN2IONcount = DCN2IONcount + 1
+	// }
+// }
+
+objref f_DCN2ION
+f_DCN2ION = new File()
+f_DCN2ION.ropen("params_DCN2ION.txt")
+double DCN2ION[25]
+for i = 0,24 {
+	DCN2ION[i] = f_DCN2ION.scanvar()
+}
+
+objref DCN2RN2ION_syn[200], NC_DCN2RN2ION_syn[200]
+
+DCN2IONcount = 0
+for j = 0,24 {
+	for k = 0,DCN2ION[j]-1 {
+		tmpIONind = f_DCN2ION.scanvar()-1
+		IONcell[tmpIONind] DCN2RN2ION_syn[DCN2IONcount] = new NoisyExp2Syn(0.2)
+		DCN2RN2ION_syn[DCN2IONcount].tau1 = 2
+		DCN2RN2ION_syn[DCN2IONcount].tau2 = 10
+		DCN2RN2ION_syn[DCN2IONcount].e = 0
+		DCNcell[j] NC_DCN2RN2ION_syn[DCN2IONcount] = new NetCon(&v(0.5), DCN2RN2ION_syn[DCN2IONcount], -40, 15, 1e-5)
+		ION_noisyn.play(&DCN2RN2ION_syn[DCN2IONcount].noise)
+		
+		DCN2IONcount = DCN2IONcount + 1
+	}
+}
+f_DCN2ION.close()
