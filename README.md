@@ -46,6 +46,11 @@ After initialization, you can run any of the following MATLAB scripts:
 
 *Note: `*p` indicates the percentage of Purkinje cells activated by each TMS pulse*
 
+To reproduce Figure 5, first run run_PL_TMS_par_20p_s0.m under PRC_scaleup_5x_7d2Hz. For simplicity, only two simulations need to be run, i.e., one for an effective phase and another for an ineffective phase. Therefore, the following line
+run_range = 1:length(PRClist);
+can be changed to:
+run_range = [12 46];
+
 ### tACS Simulations
 
 | Script | Description |
