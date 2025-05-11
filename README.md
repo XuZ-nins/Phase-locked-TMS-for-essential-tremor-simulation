@@ -6,7 +6,7 @@ This repository contains the MATLAB/NEURON simulation code for our research on p
 
 ## Publication
 
-Zhang, X., Santaniello, S., Hancock, R. (2025) Feasibility of Phase-Locked Transcranial Magnetic Stimulation of Cerebellum for the Treatment of Essential Tremor, *Journal of Neural Engineering*.
+Zhang, X., Hancock, R., Santaniello, S. (2025) Feasibility of Phase-Locked Transcranial Magnetic Stimulation of Cerebellum for the Treatment of Essential Tremor, *Journal of Neural Engineering*.
 
 ## Prerequisites
 
